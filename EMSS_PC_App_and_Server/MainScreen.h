@@ -17,7 +17,7 @@
 
 #pragma comment (lib, "ws2_32.lib")
 
-#define BUFF_SIZE 2048
+#define BUFF_SIZE 20
 
 namespace EMSS_PC_App_and_Server {
 
@@ -92,6 +92,8 @@ namespace EMSS_PC_App_and_Server {
 	public:	static System::Windows::Forms::Timer^ lblTimer = gcnew System::Windows::Forms::Timer;
 	public: static System::Windows::Forms::Label^  timeLbl;
 	public: static System::Windows::Forms::RichTextBox^  eventLogTxt;
+
+
 	private: Thread^ startServ;						//Thread to host the Server
 	private: Thread^ startVideo;					//Thread to control the Video Recording
 	private: static bool viewFeed;					//Boolean vairable to control the viewing of the Video Feed
@@ -169,6 +171,7 @@ namespace EMSS_PC_App_and_Server {
 				 this->eventLogTxt->Size = System::Drawing::Size(461, 298);
 				 this->eventLogTxt->TabIndex = 0;
 				 this->eventLogTxt->Text = L"";
+				 this->eventLogTxt->TextChanged += gcnew System::EventHandler(this, &MainScreen::eventLogTxt_TextChanged);
 				 // 
 				 // timeLbl
 				 // 
@@ -408,13 +411,31 @@ namespace EMSS_PC_App_and_Server {
 					Equipment^ scannedEQ = gcnew Equipment();
 					ZeroMemory(inputData, BUFF_SIZE);
 					equipmentStr = "";
-					recv(clientSocket, inputData, BUFF_SIZE, 0);	//Receive Equip ID
+					bytesR = recv(clientSocket, inputData, BUFF_SIZE, 0);	//Receive Equip ID
+					if (bytesR == SOCKET_ERROR){
+						logEvent("ERROR in receiving.");
+						break;
+					}
+					if (bytesR == 0){
+						logEvent("Client disconnected");
+						break;
+					}
 					equipmentStr = gcnew System::String(inputData);
-					while (equipmentStr->Length != 12){					//Wait till 12 digit message received
+					short count = 0;
+					while (equipmentStr->Length != 12 && count < 10){		//Wait till 12 digit message received, use 10 attempts
 						ZeroMemory(inputData, BUFF_SIZE);
 						equipmentStr = "";
-						recv(clientSocket, inputData, BUFF_SIZE, 0);		//Receive Equip ID
+						bytesR = recv(clientSocket, inputData, BUFF_SIZE, 0);		//Receive Equip ID
+						if (bytesR == SOCKET_ERROR){
+							logEvent("ERROR in receiving.");
+							break;
+						}
+						if (bytesR == 0){
+							logEvent("Client disconnected");
+							break;
+						}
 						equipmentStr = gcnew System::String(inputData);
+						count++;
 					}
 
 					if (scannedEQ->exists(equipmentStr)){					//Check if in the Database
@@ -471,10 +492,28 @@ namespace EMSS_PC_App_and_Server {
 				}
 				if (recvData->Length == 6){												//EmpID received
 					int pinBytes = recv(clientSocket, empPINBuff, BUFF_SIZE, 0);		//Get Employee PIN
+					if (pinBytes == SOCKET_ERROR){
+						logEvent("ERROR in receiving.");
+						break;
+					}
+					if (pinBytes == 0){
+						logEvent("Client disconnected");
+						break;
+					}
 					System::String^ recPIN = gcnew System::String(empPINBuff);			//Save PIN
-					while (recPIN->Length != 6){										//Wait till 6 digit PIN entered
+					short count = 0;
+					while (recPIN->Length != 6 && count < 10){										//Wait till 6 digit PIN entered
 						pinBytes = recv(clientSocket, empPINBuff, BUFF_SIZE, 0);		//Get Employee PIN
+						if (pinBytes == SOCKET_ERROR){
+							logEvent("ERROR in receiving.");
+							break;
+						}
+						if (pinBytes == 0){
+							logEvent("Client disconnected");
+							break;
+						}
 						recPIN = gcnew System::String(empPINBuff);						//Save PIN
+						count++;
 					}
 					
 					System::String^ recEmp = gcnew System::String(inputData);			//Save Employee ID
@@ -575,7 +614,7 @@ namespace EMSS_PC_App_and_Server {
 						else{
 							destroyWindow("Video Stream from IP camera");
 						}
-						if (waitKey(1000 / fps) >= 0) break;
+						if (waitKey(1000 / fps) >= 0) ;
 					}
 					time(&currTime);
 					std::ifstream readSize(fileStr, std::ifstream::ate | std::ifstream::binary);
@@ -714,6 +753,10 @@ namespace EMSS_PC_App_and_Server {
 			MessageBox::Show(ex->Message);
 		}
 	}
-	};
+	private: System::Void eventLogTxt_TextChanged(System::Object^  sender, System::EventArgs^  e) {
+		this->eventLogTxt->Select(eventLogTxt->Text->Length - 1, 0);
+		this->eventLogTxt->ScrollToCaret();
+	}
+};
 }
 #endif
