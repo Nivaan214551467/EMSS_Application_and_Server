@@ -29,7 +29,7 @@ bool Equipment::get_loaned_out(Int32^ reqID, System::String^ reqEqID, System::St
 bool Equipment::return_equipment(Int32^ reqID, System::String^ reqEqID, System::String^ dateTime){
 	DatabaseQueries^ msql = gcnew DatabaseQueries();
 	if (msql->setQuery("UPDATE `emss_database`.`equipment` SET `loaned_out_to` = '0' WHERE `equip_id` = '" + reqEqID + "';")){
-		if (msql->setQuery("UPDATE `emss_database`.`loan_tracking` SET `loan_tracking`.`return_date` =  '" + dateTime + "' WHERE `loan_tracking`.`equip_id` = '" + reqEqID + "' AND `loan_tracking`.`employee_id` = '" + reqID + "' AND `loan_tracking`.`loan_date` is NULL;")){
+		if (msql->setQuery("UPDATE `emss_database`.`loan_tracking` SET `loan_tracking`.`return_date` =  '"+ dateTime+"' WHERE `loan_tracking`.`equip_id` = '"+ reqEqID +"' AND `loan_tracking`.`employee_id` = '" + reqID + "' AND `loan_tracking`.`return_date` is NULL;")){
 			return true;
 		}
 	}
@@ -83,4 +83,25 @@ bool Equipment::isBorrowed(System::String^ recEqID){
 		MessageBox::Show("ERROR processing ETAS data.");
 	}
 	return true;
+}
+
+bool Equipment::exists(System::String^ recEqID){
+	MySqlConnection^ conDataBase;
+	try{
+		conDataBase = gcnew MySqlConnection(L"datasource=localhost; port = 3306; username = emss_admin; password = ENEL4CA-g5");
+		conDataBase->Open();
+		MySqlCommand^ sql = gcnew MySqlCommand("SELECT * FROM `emss_database`.`equipment` WHERE `equip_id` = '" + recEqID + "';", conDataBase);
+		MySqlDataReader^ reader = sql->ExecuteReader();
+		if (reader->Read()){
+			return true;
+		}
+		else{
+			return false;
+		}
+		reader->Close();
+	}
+	catch (System::Exception^ ex){
+		MessageBox::Show("ERROR processing ETAS data.");
+	}
+	return false;
 }

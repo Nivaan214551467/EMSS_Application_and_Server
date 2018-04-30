@@ -18,6 +18,7 @@ public:
 	bool update(System::String^, System::String^, System::String^);
 	bool del();
 	bool isBorrowed(System::String^ recEqID);
+	bool exists(System::String^ recEqID);
 	~Equipment(void);
 };
 

@@ -67,6 +67,7 @@ namespace EMSS_PC_App_and_Server {
 		~MainScreen(){
 			stopVideo = true;
 			waitKey(1000);
+			shutdown(clientSocket, SHUTDOWN_FORCE_OTHERS);
 			closesocket(serv);
 			startServ->Abort();
 			startVideo->Abort();
@@ -75,6 +76,9 @@ namespace EMSS_PC_App_and_Server {
 			{
 				delete components;
 			}
+			/*if (logFile != NULL){
+				fclose(logFile);
+			}*/
 		}
 	private:System::Windows::Forms::Panel^  panel1;
 			System::Windows::Forms::Label^  eventLogLbl;
@@ -91,6 +95,8 @@ namespace EMSS_PC_App_and_Server {
 	private: Thread^ startVideo;					//Thread to control the Video Recording
 	private: static bool viewFeed;					//Boolean vairable to control the viewing of the Video Feed
 	private: static SOCKET serv;					//Socket used to listen for Clients
+	private: static SOCKET clientSocket;
+	private: static FILE *logFile;
 	private: static short video_length;				//video recording length in seconds
 	private: static long long video_max_size;		//Max video length in Bytes - Limit to under 4GB
 	private: static long long video_age;			//2 * 2592000 seconds in 2 months
@@ -292,6 +298,16 @@ namespace EMSS_PC_App_and_Server {
 #pragma endregion
 
 	private: System::Void MainScreen_Load(System::Object^  sender, System::EventArgs^  e) {
+		/*char cDate[15];
+		getStdStringTime("Logs\%Y-%m-%d.txt", cDate, time(0));
+		logFile = fopen(cDate, "a");
+		if (logFile == NULL){
+			logFile = fopen(cDate, "w");
+			if (logFile == NULL){
+				logEvent("ERROR opening log file");
+			}
+		}*/
+
 		logEvent("[STARTUP] System started.");
 
 		this->video_length = 30;							//Default system settings
@@ -316,7 +332,6 @@ namespace EMSS_PC_App_and_Server {
 		startVideo = gcnew Thread(gcnew ThreadStart(startVidF));
 		stopVideo = false;							
 		startVideo->Start();						//Starts Video Thread
-		//logEvent("VIDEO SERVER NOT STARTED");
 		waitKey(100);
 		if (startVideo->IsAlive){
 			logEvent("Video Thread started.");
@@ -343,7 +358,7 @@ namespace EMSS_PC_App_and_Server {
 
 			sockaddr_in client;
 			int clientSize = sizeof(client);
-			SOCKET clientSocket = accept(serv, (sockaddr*)&client, &clientSize); //Accept client connection
+			clientSocket = accept(serv, (sockaddr*)&client, &clientSize); //Accept client connection
 
 			char host[NI_MAXHOST];						//char array hold the host name
 			char service[NI_MAXHOST];
@@ -367,6 +382,8 @@ namespace EMSS_PC_App_and_Server {
 			char empPINBuff[BUFF_SIZE];					//Stores Employee PIN
 			char response[BUFF_SIZE];					//Stores message to send to client
 			System::String^ recvData = "";
+			System::String^ equipmentStr = "";
+
 			while (true){								//Loop when client connected.
 				recvData = "";
 				ZeroMemory(inputData, BUFF_SIZE);
@@ -386,67 +403,71 @@ namespace EMSS_PC_App_and_Server {
 					break;
 				}
 
-
 				if (recvData->Length == 3){								//EquipID received
 					Equipment^ scannedEQ = gcnew Equipment();
-					if (recvData == "LLL" && currEmployee != ""){		//Loan data
+					ZeroMemory(inputData, BUFF_SIZE);
+					equipmentStr = "";
+					recv(clientSocket, inputData, BUFF_SIZE, 0);	//Receive Equip ID
+					equipmentStr = gcnew System::String(inputData);
+					while (equipmentStr->Length != 12){					//Wait till 12 digit message received
 						ZeroMemory(inputData, BUFF_SIZE);
-						recvData = "";
-						recv(clientSocket, inputData, BUFF_SIZE, 0);	//Receive Equip ID
-						recvData = gcnew System::String(inputData);
-						while (recvData->Length != 12){					//Wait till 12 digit message received
-							ZeroMemory(inputData, BUFF_SIZE);
-							recvData = "";
-							recv(clientSocket, inputData, BUFF_SIZE, 0);		//Receive Equip ID
-							recvData = gcnew System::String(inputData);
+						equipmentStr = "";
+						recv(clientSocket, inputData, BUFF_SIZE, 0);		//Receive Equip ID
+						equipmentStr = gcnew System::String(inputData);
+					}
+
+					if (scannedEQ->exists(equipmentStr)){					//Check if in the Database
+						if (recvData == "LLL" && currEmployee == ""){		//Sound Alarm
+							if (!scannedEQ->isBorrowed(equipmentStr) && scannedEQ->exists(equipmentStr)){
+								logEvent("Sound Alarm");
+							}
 						}
-						logEvent("Receieved Equip ID is " + recvData + " for Employee " + currEmployee);
-						if (!scannedEQ->isBorrowed(recvData)){					//If not loaned, loan now
-							char currDate[100];
-							getStdStringTime("%Y-%m-%d %H:%M:%S", currDate, time(0));
-							try{
-								if (scannedEQ->get_loaned_out(Int32::Parse(currEmployee), recvData, gcnew System::String(currDate))){
-									logEvent("Equipment " + recvData + " loaned to Employee " + currEmployee);
+
+						if (recvData == "LLL" && currEmployee != ""){		//Loan data
+							logEvent("Receieved Equip ID is " + equipmentStr + " for Employee " + currEmployee);
+							if (!scannedEQ->isBorrowed(equipmentStr) && scannedEQ->exists(equipmentStr)){	//If not loaned, loan now
+								char currDate[100];
+								getStdStringTime("%Y-%m-%d %H:%M:%S", currDate, time(0));
+								try{
+									if (scannedEQ->get_loaned_out(Int32::Parse(currEmployee), equipmentStr, gcnew System::String(currDate))){
+										logEvent("Equipment " + equipmentStr + " loaned to Employee " + currEmployee);
+									}
+									else{
+										logEvent("Cannot record Equipment " + equipmentStr + " loaned to Employee " + currEmployee);
+									}
+								}
+								catch (System::Exception^ ex){
+									MessageBox::Show("Error trying to loan out equipment.");
+								}
+							}
+							else{
+								logEvent("Equipment is already loaned.");
+							}
+						}
+						else if (recvData == "RRR" && currEmployee != ""){			//Return equipment
+							if (scannedEQ->isBorrowed(equipmentStr)){					//Already returned
+								logEvent("Receieved Equip ID is " + equipmentStr + " for Employee " + currEmployee);
+								char currDate[100];
+								getStdStringTime("%Y-%m-%d %H:%M:%S", currDate, time(0));
+								if (scannedEQ->return_equipment(Int32::Parse(currEmployee), equipmentStr, gcnew System::String(currDate))){
+									logEvent("Equipment Returned");
 								}
 								else{
-									logEvent("Cannot record Equipment " + recvData->Substring(1) + " loaned to Employee " + currEmployee);
+									logEvent("Could not return Equipment " + equipmentStr);
 								}
 							}
-							catch (System::Exception^ ex){
-								MessageBox::Show("Error trying to loan out equipment.");
+							else{
+								logEvent("Equipment already returned.");
 							}
 						}
 						else{
-							logEvent("Equipment is already loaned.");
-						}
-					}
-					else if (recvData == "RRR" && currEmployee != ""){			//Return equipment
-						Equipment^ retEq;
-						ZeroMemory(inputData, BUFF_SIZE);
-						recvData = "";
-						while (recvData->Length != 12){							//Wait till 12 digit message received
-							ZeroMemory(inputData, BUFF_SIZE);
-							recvData = "";
-							recv(clientSocket, inputData, BUFF_SIZE, 0);		//Receive Equip ID
-							recvData = gcnew System::String(inputData);
-						}
-						if (scannedEQ->isBorrowed(recvData)){					//Already returned
-							logEvent("Receieved Equip ID is " + recvData + " for Employee " + currEmployee);
-							char currDate[100];
-							getStdStringTime("%Y-%m-%d %H:%M:%S", currDate, time(0));
-							if (retEq->return_equipment(Int32::Parse(currEmployee), recvData, gcnew System::String(currDate))){
-								logEvent("Equipment Returned");
-							}
-						}
-						else{
-							logEvent("Equipment already returned.");
+							logEvent("Did nothing with Equip ID " + equipmentStr);
 						}
 					}
 					else{
-						logEvent("Did nothing with Equip ID " + recvData);
+						logEvent(equipmentStr + " not in the Database");
 					}
 				}
-
 				if (recvData->Length == 6){												//EmpID received
 					int pinBytes = recv(clientSocket, empPINBuff, BUFF_SIZE, 0);		//Get Employee PIN
 					System::String^ recPIN = gcnew System::String(empPINBuff);			//Save PIN
@@ -567,7 +588,7 @@ namespace EMSS_PC_App_and_Server {
 		ipStream.release();
 		logEvent("Camera closed.");
 	}
-
+	
 	private: void static TimerEventProcessor(Object^ myObject, EventArgs^ myEventArgs){	//TImer used to upate the display every second
 		lblTimer->Stop();						//Stop the timer
 		char str[100];
@@ -616,6 +637,9 @@ namespace EMSS_PC_App_and_Server {
 		else{
 			eventLogTxt->Text += timeLog + text + "\n";
 		}
+		/*if (logFile != NULL){
+			//fprintf(logFile, (const char *)(Marshal::StringToHGlobalAnsi(timeLog + text + "\n")).ToPointer());
+		}*/
 	}
 	public: static void getStdStringTime(char * text, char str[], time_t timer){
 		struct tm time_info;

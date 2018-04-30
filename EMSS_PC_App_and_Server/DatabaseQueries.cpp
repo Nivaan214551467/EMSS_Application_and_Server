@@ -17,6 +17,9 @@ bool DatabaseQueries::setQuery(System::String^ text){
 		conDataBase->Open();
 		MySqlCommand^ sql = gcnew MySqlCommand(text, conDataBase);
 		MySqlDataReader^ reader = sql->ExecuteReader();
+		if (reader->RecordsAffected == 0){
+			return false;
+		}
 		reader->Close();
 		conDataBase->Close();
 	}
