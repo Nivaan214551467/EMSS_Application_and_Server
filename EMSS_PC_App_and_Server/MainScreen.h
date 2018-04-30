@@ -65,6 +65,7 @@ namespace EMSS_PC_App_and_Server {
 		/// Clean up any resources being used.
 		/// </summary>
 		~MainScreen(){
+			logEvent("[SHUTDOWN] System Shutdown.");
 			stopVideo = true;
 			waitKey(1000);
 			shutdown(clientSocket, SHUTDOWN_FORCE_OTHERS);
@@ -76,9 +77,9 @@ namespace EMSS_PC_App_and_Server {
 			{
 				delete components;
 			}
-			/*if (logFile != NULL){
+			if (logFile != NULL){
 				fclose(logFile);
-			}*/
+			}
 		}
 	private:System::Windows::Forms::Panel^  panel1;
 			System::Windows::Forms::Label^  eventLogLbl;
@@ -298,15 +299,15 @@ namespace EMSS_PC_App_and_Server {
 #pragma endregion
 
 	private: System::Void MainScreen_Load(System::Object^  sender, System::EventArgs^  e) {
-		/*char cDate[15];
-		getStdStringTime("Logs\%Y-%m-%d.txt", cDate, time(0));
+		char cDate[70];
+		getStdStringTime("C:\\EMSS_video_recordings\\Logs\\%Y-%m-%d.txt", cDate, time(0));
 		logFile = fopen(cDate, "a");
 		if (logFile == NULL){
 			logFile = fopen(cDate, "w");
 			if (logFile == NULL){
 				logEvent("ERROR opening log file");
 			}
-		}*/
+		}
 
 		logEvent("[STARTUP] System started.");
 
@@ -354,13 +355,13 @@ namespace EMSS_PC_App_and_Server {
 		sockAdd.sin_addr.S_un.S_addr = INADDR_ANY;
 		while (!stopServ){
 			bind(serv, (sockaddr*)&sockAdd, sizeof(sockAdd));	//bind details to server socket
-			listen(serv, SOMAXCONN);					//Server socket is listening for client
+			listen(serv, SOMAXCONN);							//Server socket is listening for client
 
 			sockaddr_in client;
 			int clientSize = sizeof(client);
 			clientSocket = accept(serv, (sockaddr*)&client, &clientSize); //Accept client connection
 
-			char host[NI_MAXHOST];						//char array hold the host name
+			char host[NI_MAXHOST];								//char array hold the host name
 			char service[NI_MAXHOST];
 
 			ZeroMemory(host, NI_MAXHOST);
@@ -637,9 +638,13 @@ namespace EMSS_PC_App_and_Server {
 		else{
 			eventLogTxt->Text += timeLog + text + "\n";
 		}
-		/*if (logFile != NULL){
-			//fprintf(logFile, (const char *)(Marshal::StringToHGlobalAnsi(timeLog + text + "\n")).ToPointer());
-		}*/
+		if (logFile != NULL){			//Write to text file
+			fprintf(logFile, (const char *)(Marshal::StringToHGlobalAnsi(timeLog + text + "\n")).ToPointer());
+			fclose(logFile);
+			char cDate[70];																		//Close to save content
+			getStdStringTime("C:\\EMSS_video_recordings\\Logs\\%Y-%m-%d.txt", cDate, time(0));	//Reopen Textfile
+			logFile = fopen(cDate, "a");
+		}
 	}
 	public: static void getStdStringTime(char * text, char str[], time_t timer){
 		struct tm time_info;

@@ -490,9 +490,9 @@ namespace EMSS_PC_App_and_Server {
 			if (checkIP(this->etasIPTxt->Text)){
 				System::String^ camconn;
 				if (this->camPassTxt->Text == "")		//Check if password is set
-					camconn = "http://" + this->cameraIPTxt->Text + ":" + this->cameraPortTxt->Value + "/video?x.mjpeg";
+					camconn = "tcp://" + this->cameraIPTxt->Text + ":" + this->cameraPortTxt->Value + "/video?x.mjpeg";
 				else									//If password set, save camera IP accordingly
-					camconn = "http://" + this->camUserTxt->Text + ":" + this->camPassTxt->Text + "@" + this->cameraIPTxt->Text + ":" + this->cameraPortTxt->Text + "/video?x.mjpeg";
+					camconn = "tcp://" + this->camUserTxt->Text + ":" + this->camPassTxt->Text + "@" + this->cameraIPTxt->Text + ":" + this->cameraPortTxt->Text + "/video?x.mjpeg";
 
 				DatabaseQueries^ msql = gcnew DatabaseQueries();
 				if (msql->setQuery("UPDATE `emss_database`.`settings` SET `video_length_s` = '" + this->vidLengthTxt->Value + "', `video_max_size_m`='" + this->vidSizeTxt->Value + "', `video_age_m`='" + this->vidAgeTxt->Value + "', `camera_ip`='" + camconn + "', `etas_ip`='" + this->etasIPTxt->Text + "', `server_port`='" + this->serverPortTxt->Value + "' WHERE `settings_id`='1';")){
