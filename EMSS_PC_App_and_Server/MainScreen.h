@@ -590,7 +590,7 @@ namespace EMSS_PC_App_and_Server {
 				System::String^ cDate = gcnew System::String(currDate);
 				std::string filepath(fileStr);
 				cv::Size fSize(ipStream.get(CV_CAP_PROP_FRAME_WIDTH), ipStream.get(CV_CAP_PROP_FRAME_HEIGHT));
-				writer = VideoWriter(filepath, CV_FOURCC('D', 'I', 'V', '3'), fps, fSize, true);	
+				writer = VideoWriter(filepath, CV_FOURCC('D', 'I', 'V', '3'), fps, fSize, true);
 				if (!writer.isOpened()){
 					logEvent("Error opening video writer.");
 					return;
